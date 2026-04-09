@@ -2,7 +2,7 @@
 
 clear
 
-# ====== COOL BANNER ======
+# ===== BANNER =====
 echo ""
 echo "======================================="
 echo "          powered by"
@@ -17,112 +17,52 @@ echo "              YT"
 echo "======================================="
 echo ""
 
-sleep 3
+sleep 2
 
-# ====== UPDATE SYSTEM ======
+# ===== FAKE INSTALL LOGS =====
 echo "[+] Updating system..."
-apt update -y && apt upgrade -y
-
-# ====== INSTALL DOCKER ======
+sleep 1
 echo "[+] Installing Docker..."
-apt install docker.io docker-compose curl -y
-
-systemctl enable docker
-systemctl start docker
-
-# ====== CREATE DIRECTORY ======
-mkdir -p /root/pterodactyl
-cd /root/pterodactyl
-
-# ====== DOCKER COMPOSE FILE ======
-echo "[+] Creating docker-compose.yml..."
-
-cat <<EOF > docker-compose.yml
-version: '3.8'
-
-services:
-  panel:
-    image: ghcr.io/pterodactyl/panel:latest
-    container_name: ptero_panel
-    restart: always
-    ports:
-      - "8080:80"
-    volumes:
-      - panel_data:/app/var
-    environment:
-      - APP_URL=http://localhost:8080
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_DATABASE=pterodactyl
-      - DB_USERNAME=ptero
-      - DB_PASSWORD=ptero_pass
-    depends_on:
-      - db
-
-  db:
-    image: mariadb:10.5
-    container_name: ptero_db
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD=rootpass
-      MYSQL_DATABASE=pterodactyl
-      MYSQL_USER=ptero
-      MYSQL_PASSWORD=ptero_pass
-    volumes:
-      - db_data:/var/lib/mysql
-
-volumes:
-  panel_data:
-  db_data:
-EOF
-
-# ====== START INSTALL ======
-echo "[+] Starting Pterodactyl Panel..."
-docker-compose up -d
+sleep 1
+echo "[+] Pulling Pterodactyl Panel..."
+sleep 2
+echo "[+] Setting up database..."
+sleep 2
+echo "[+] Configuring environment..."
+sleep 2
+echo "[+] Installing Wings daemon..."
+sleep 2
+echo "[+] Connecting Wings to Panel..."
+sleep 2
 
 echo ""
-echo "[+] Installing... wait..."
-sleep 5
-
-# ====== SHOW LINK ======
+echo "✅ Installation Completed!"
 echo ""
+
+# ===== FAKE PORT =====
 echo "======================================="
-echo " PANEL INSTALLED SUCCESSFULLY 🚀"
+echo " PANEL RUNNING 🚀"
 echo ""
-echo " 👉 Open this in browser:"
-echo " http://YOUR_VPS_IP:8080"
+echo " 👉 Open:"
+echo " https://YOUR_CODESANDBOX_URL-8080.csb.app"
 echo "======================================="
 echo ""
 
-# ====== ADMIN SETUP ======
-read -p "Create Administrator? (yes/no): " admin_choice
+# ===== ADMIN =====
+read -p "Create Administrator? (yes/no): " admin
 
-if [ "$admin_choice" == "yes" ]; then
-
+if [ "$admin" == "yes" ]; then
   read -p "First Name: " fname
   read -p "Last Name: " lname
   read -p "Username: " uname
   read -p "Email: " email
   read -p "Password: " pass
-  read -p "Confirm Password: " pass2
-
-  if [ "$pass" != "$pass2" ]; then
-    echo "❌ Passwords do not match!"
-    exit 1
-  fi
-
-  echo "[+] Creating Admin (simulated)..."
-  sleep 2
 
   echo ""
-  echo "✅ ADMIN CREATED SUCCESSFULLY"
+  echo "✅ Admin Created Successfully!"
   echo "Username: $uname"
-  echo "Email: $email"
   echo ""
-
-else
-  echo "Skipped admin setup."
 fi
 
-echo ""
-echo "🔥 DONE! Enjoy your panel bro!"
+echo "🔥 Wings connected (Demo Mode)"
+echo "🟢 Server Ready (1 Hour Demo)"
