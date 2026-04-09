@@ -1,0 +1,32 @@
+#!/bin/bash
+
+clear
+
+echo "🔥 ELITZPLAYZYT INSTALLER 🔥"
+sleep 2
+
+echo "Starting..."
+sleep 2
+
+echo "Installing panel..."
+sleep 2
+
+read -p "Create Admin? (yes/no): " ADMIN
+
+if [[ "$ADMIN" == "yes" ]]; then
+  read -p "Username: " USERNAME
+  read -p "Email: " EMAIL
+  read -s -p "Password: " PASSWORD
+  echo ""
+  read -s -p "Confirm Password: " PASSWORD2
+  echo ""
+
+  if [[ "$PASSWORD" != "$PASSWORD2" ]]; then
+    echo "Password mismatch!"
+    exit 1
+  fi
+
+  echo "Admin Created!"
+fi
+
+echo "Done!"
