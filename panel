@@ -134,7 +134,7 @@ echo "👤 User Created!"
 fi
 
 # =========================
-# START PANEL (IMPORTANT FIX)
+# START PANEL + PORT FIX
 # =========================
 
 echo ""
@@ -142,7 +142,13 @@ echo "🚀 Starting Panel on port 8080..."
 
 cd /var/www/pterodactyl
 
+# Start in background
 nohup php artisan serve --host=0.0.0.0 --port=8080 > /dev/null 2>&1 &
+
+sleep 2
+
+# Trigger port detection (IMPORTANT)
+php artisan serve --host=0.0.0.0 --port=8080 &
 
 sleep 3
 
@@ -155,5 +161,6 @@ echo "====================================="
 echo "✅ INSTALLATION COMPLETE!"
 echo ""
 echo "👉 Go to PORTS section"
-echo "👉 Open port 8080 to access your panel"
+echo "👉 Port 8080 should now be visible"
+echo "👉 Click it to open panel"
 echo "====================================="
