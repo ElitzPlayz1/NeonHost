@@ -2,12 +2,11 @@
 
 clear
 
-echo "==================================="
-echo "           Powered By"
+echo "====================================="
+echo "        POWERED BY"
 sleep 1
 clear
 
-# BIG TEXT DESIGN
 echo "███████╗██╗     ██╗████████╗███████╗"
 echo "██╔════╝██║     ██║╚══██╔══╝██╔════╝"
 echo "█████╗  ██║     ██║   ██║   ███████╗"
@@ -16,41 +15,37 @@ echo "███████╗███████╗██║   ██║   �
 echo "╚══════╝╚══════╝╚═╝   ╚═╝   ╚══════╝"
 
 echo ""
-echo "      ELITZPLAYZYT PANEL INSTALLER"
-echo "==================================="
+echo "        ELITZPLAYZYT INSTALLER"
+echo "====================================="
 
 sleep 3
 
-echo ""
 echo "🚀 Starting Installation..."
-sleep 2
 
-# -------------------------------
-# INSTALL DEPENDENCIES
-# -------------------------------
-echo "📦 Installing Dependencies..."
-apt update -y
-apt upgrade -y
+# Root check
+if [ "$EUID" -ne 0 ]; then
+  echo "❌ Run as root (sudo su)"
+  exit
+fi
 
+# Update system
+apt update -y && apt upgrade -y
+
+# Install dependencies
 apt install -y curl wget git unzip software-properties-common
 
 add-apt-repository universe -y
 apt update -y
 
+# Install PHP + Nginx + MySQL
 apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-zip mysql-server nginx tar
 
-# -------------------------------
-# INSTALL COMPOSER
-# -------------------------------
-echo "📥 Installing Composer..."
+# Install Composer
 cd ~
 curl -sS https://getcomposer.org/installer | php
 mv composer.phar /usr/local/bin/composer
 
-# -------------------------------
-# DOWNLOAD PANEL
-# -------------------------------
-echo "📦 Downloading Panel..."
+# Download Panel
 mkdir -p /var/www/pterodactyl
 cd /var/www/pterodactyl
 
@@ -59,20 +54,12 @@ tar -xzvf panel.tar.gz
 
 chmod -R 755 storage/* bootstrap/cache/
 
-# -------------------------------
-# ENV SETUP
-# -------------------------------
-echo "⚙️ Setting up environment..."
+# Setup environment
 cp .env.example .env
 composer install --no-dev --optimize-autoloader
-
 php artisan key:generate --force
 
-# -------------------------------
-# DATABASE SETUP
-# -------------------------------
-echo "🛢️ Setting up MySQL..."
-
+# Database
 mysql -u root <<EOF
 CREATE DATABASE panel;
 CREATE USER 'ptero'@'127.0.0.1' IDENTIFIED BY 'StrongPassword123!';
@@ -80,11 +67,9 @@ GRANT ALL PRIVILEGES ON panel.* TO 'ptero'@'127.0.0.1';
 FLUSH PRIVILEGES;
 EOF
 
-# -------------------------------
-# AUTO CONFIG
-# -------------------------------
+# Panel config
 php artisan p:environment:setup <<EOF
-https://localhost
+http://localhost
 yes
 UTC
 yes
@@ -102,43 +87,15 @@ EOF
 
 php artisan migrate --seed --force
 
-# -------------------------------
-# ADMIN SETUP
-# -------------------------------
+# Admin setup
 echo ""
-echo "👑 Do you want Administrator account?"
-read -p "Type yes or no: " admin_choice
+read -p "Create Admin? (yes/no): " admin
 
-if [ "$admin_choice" = "yes" ]; then
-
-    read -p "First Name: " fname
-    read -p "Last Name: " lname
-    read -p "Username: " uname
-    read -p "Email: " email
-    read -p "Password: " pass
-    read -p "Confirm Password: " cpass
-
-    if [ "$pass" != "$cpass" ]; then
-        echo "❌ Password mismatch!"
-        exit 1
-    fi
-
-    php artisan p:user:make <<EOF
-yes
-$email
-$uname
-$fname
-$lname
-$pass
-EOF
-
+if [ "$admin" = "yes" ]; then
+    php artisan p:user:make
 fi
 
-# -------------------------------
-# NGINX SETUP
-# -------------------------------
-echo "🌐 Configuring Nginx..."
-
+# Nginx config
 cat > /etc/nginx/sites-available/pterodactyl <<EOL
 server {
     listen 8080;
@@ -155,25 +112,14 @@ server {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/var/run/php/php8.1-fpm.sock;
     }
-
-    location ~ /\.ht {
-        deny all;
-    }
 }
 EOL
 
 ln -s /etc/nginx/sites-available/pterodactyl /etc/nginx/sites-enabled/
 systemctl restart nginx
 
-# -------------------------------
-# FINAL OUTPUT
-# -------------------------------
 clear
-echo "==================================="
-echo "✅ INSTALLATION COMPLETE!"
-echo ""
-echo "🌍 PANEL LINK:"
-echo "👉 http://YOUR_SERVER_IP:8080"
-echo ""
-echo "⚡ Open this in browser to access panel"
-echo "==================================="
+echo "====================================="
+echo "✅ INSTALL COMPLETE!"
+echo "🌍 Open: http://YOUR-IP:8080"
+echo "====================================="
