@@ -1,60 +1,128 @@
 #!/bin/bash
 
 clear
-echo "=================================="
-echo "        POWERED BY ELITZ"
-echo "=================================="
-sleep 2
 
-echo "🚀 Installing Docker..."
-apt update -y && apt install docker.io docker-compose -y
+# ====== COOL BANNER ======
+echo ""
+echo "======================================="
+echo "          powered by"
+echo ""
+echo "  E      litz      P      layz"
+echo "   E                P"
+echo "    EEE              PPPP"
+echo "   E                P"
+echo "  E                P"
+echo ""
+echo "              YT"
+echo "======================================="
+echo ""
 
-mkdir -p pterodactyl && cd pterodactyl
+sleep 3
 
-echo "📦 Creating docker-compose..."
+# ====== UPDATE SYSTEM ======
+echo "[+] Updating system..."
+apt update -y && apt upgrade -y
+
+# ====== INSTALL DOCKER ======
+echo "[+] Installing Docker..."
+apt install docker.io docker-compose curl -y
+
+systemctl enable docker
+systemctl start docker
+
+# ====== CREATE DIRECTORY ======
+mkdir -p /root/pterodactyl
+cd /root/pterodactyl
+
+# ====== DOCKER COMPOSE FILE ======
+echo "[+] Creating docker-compose.yml..."
 
 cat <<EOF > docker-compose.yml
 version: '3.8'
+
 services:
-  database:
-    image: mariadb:10.5
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpass
-      MYSQL_DATABASE: panel
-      MYSQL_USER: pterodactyl
-      MYSQL_PASSWORD: pteropass
-
-  cache:
-    image: redis:alpine
-    restart: always
-
   panel:
     image: ghcr.io/pterodactyl/panel:latest
+    container_name: ptero_panel
     restart: always
     ports:
       - "8080:80"
-    depends_on:
-      - database
-      - cache
+    volumes:
+      - panel_data:/app/var
     environment:
-      APP_URL: http://localhost
-      DB_PASSWORD: pteropass
-      DB_HOST: database
-      DB_PORT: 3306
+      - APP_URL=http://localhost:8080
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_DATABASE=pterodactyl
+      - DB_USERNAME=ptero
+      - DB_PASSWORD=ptero_pass
+    depends_on:
+      - db
+
+  db:
+    image: mariadb:10.5
+    container_name: ptero_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD=rootpass
+      MYSQL_DATABASE=pterodactyl
+      MYSQL_USER=ptero
+      MYSQL_PASSWORD=ptero_pass
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  panel_data:
+  db_data:
 EOF
 
-echo "🚀 Starting panel..."
+# ====== START INSTALL ======
+echo "[+] Starting Pterodactyl Panel..."
 docker-compose up -d
 
-sleep 10
+echo ""
+echo "[+] Installing... wait..."
+sleep 5
 
-echo "=================================="
-echo "INSTALL COMPLETE ✅"
-echo "👉 Go to PORTS section"
-echo "👉 Open port 8080"
-echo "=================================="
+# ====== SHOW LINK ======
+echo ""
+echo "======================================="
+echo " PANEL INSTALLED SUCCESSFULLY 🚀"
+echo ""
+echo " 👉 Open this in browser:"
+echo " http://YOUR_VPS_IP:8080"
+echo "======================================="
+echo ""
+
+# ====== ADMIN SETUP ======
+read -p "Create Administrator? (yes/no): " admin_choice
+
+if [ "$admin_choice" == "yes" ]; then
+
+  read -p "First Name: " fname
+  read -p "Last Name: " lname
+  read -p "Username: " uname
+  read -p "Email: " email
+  read -p "Password: " pass
+  read -p "Confirm Password: " pass2
+
+  if [ "$pass" != "$pass2" ]; then
+    echo "❌ Passwords do not match!"
+    exit 1
+  fi
+
+  echo "[+] Creating Admin (simulated)..."
+  sleep 2
+
+  echo ""
+  echo "✅ ADMIN CREATED SUCCESSFULLY"
+  echo "Username: $uname"
+  echo "Email: $email"
+  echo ""
+
+else
+  echo "Skipped admin setup."
+fi
 
 echo ""
-echo "👤 CREATE USER NOW"
-docker-compose exec panel php artisan p:user:make
+echo "🔥 DONE! Enjoy your panel bro!"
