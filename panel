@@ -2,36 +2,55 @@
 
 clear
 
-echo "====================================="
-echo "        Powered By"
+echo "==================================="
+echo "           Powered By"
 sleep 1
 clear
 
+# BIG TEXT DESIGN
 echo "███████╗██╗     ██╗████████╗███████╗"
 echo "██╔════╝██║     ██║╚══██╔══╝██╔════╝"
 echo "█████╗  ██║     ██║   ██║   ███████╗"
 echo "██╔══╝  ██║     ██║   ██║   ╚════██║"
 echo "███████╗███████╗██║   ██║   ███████║"
 echo "╚══════╝╚══════╝╚═╝   ╚═╝   ╚══════╝"
-echo ""
-echo "   🔥 ELITZPLAYZYT1 PANEL INSTALLER 🔥"
-echo "====================================="
 
+echo ""
+echo "      ELITZPLAYZYT PANEL INSTALLER"
+echo "==================================="
+
+sleep 3
+
+echo ""
+echo "🚀 Starting Installation..."
 sleep 2
 
-echo "Starting Installation..."
-sleep 1
-
+# -------------------------------
 # INSTALL DEPENDENCIES
+# -------------------------------
+echo "📦 Installing Dependencies..."
 apt update -y
-apt install -y curl wget git unzip php php-cli php-mbstring php-xml php-bcmath php-curl php-zip mysql-server
+apt upgrade -y
 
+apt install -y curl wget git unzip software-properties-common
+
+add-apt-repository universe -y
+apt update -y
+
+apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-zip mysql-server nginx tar
+
+# -------------------------------
 # INSTALL COMPOSER
+# -------------------------------
+echo "📥 Installing Composer..."
 cd ~
 curl -sS https://getcomposer.org/installer | php
 mv composer.phar /usr/local/bin/composer
 
+# -------------------------------
 # DOWNLOAD PANEL
+# -------------------------------
+echo "📦 Downloading Panel..."
 mkdir -p /var/www/pterodactyl
 cd /var/www/pterodactyl
 
@@ -40,52 +59,121 @@ tar -xzvf panel.tar.gz
 
 chmod -R 755 storage/* bootstrap/cache/
 
+# -------------------------------
+# ENV SETUP
+# -------------------------------
+echo "⚙️ Setting up environment..."
 cp .env.example .env
-
-# INSTALL PANEL DEPENDENCIES (IMPORTANT FIX)
 composer install --no-dev --optimize-autoloader
 
 php artisan key:generate --force
 
-# DATABASE QUICK FIX (Codespaces friendly)
-touch database/database.sqlite
+# -------------------------------
+# DATABASE SETUP
+# -------------------------------
+echo "🛢️ Setting up MySQL..."
+
+mysql -u root <<EOF
+CREATE DATABASE panel;
+CREATE USER 'ptero'@'127.0.0.1' IDENTIFIED BY 'StrongPassword123!';
+GRANT ALL PRIVILEGES ON panel.* TO 'ptero'@'127.0.0.1';
+FLUSH PRIVILEGES;
+EOF
+
+# -------------------------------
+# AUTO CONFIG
+# -------------------------------
+php artisan p:environment:setup <<EOF
+https://localhost
+yes
+UTC
+yes
+file
+redis
+EOF
+
+php artisan p:environment:database <<EOF
+127.0.0.1
+3306
+panel
+ptero
+StrongPassword123!
+EOF
+
 php artisan migrate --seed --force
 
-# ADMIN CREATE
-read -p "Create Administrator? (yes/no): " ADMIN
+# -------------------------------
+# ADMIN SETUP
+# -------------------------------
+echo ""
+echo "👑 Do you want Administrator account?"
+read -p "Type yes or no: " admin_choice
 
-if [[ "$ADMIN" == "yes" ]]; then
-    read -p "First Name: " FNAME
-    read -p "Last Name: " LNAME
-    read -p "Email: " EMAIL
-    read -s -p "Password: " PASSWORD
-    echo ""
-    read -s -p "Confirm Password: " PASSWORD2
-    echo ""
+if [ "$admin_choice" = "yes" ]; then
 
-    if [[ "$PASSWORD" != "$PASSWORD2" ]]; then
-        echo "Password mismatch!"
+    read -p "First Name: " fname
+    read -p "Last Name: " lname
+    read -p "Username: " uname
+    read -p "Email: " email
+    read -p "Password: " pass
+    read -p "Confirm Password: " cpass
+
+    if [ "$pass" != "$cpass" ]; then
+        echo "❌ Password mismatch!"
         exit 1
     fi
 
     php artisan p:user:make <<EOF
 yes
-$EMAIL
-$FNAME
-$LNAME
-$PASSWORD
+$email
+$uname
+$fname
+$lname
+$pass
 EOF
 
-    echo "Admin Created!"
-else
-    echo "Skipped Admin Creation"
 fi
 
-# =========================
-# START SERVER (IMPORTANT)
-# =========================
+# -------------------------------
+# NGINX SETUP
+# -------------------------------
+echo "🌐 Configuring Nginx..."
 
+cat > /etc/nginx/sites-available/pterodactyl <<EOL
+server {
+    listen 8080;
+    server_name _;
+
+    root /var/www/pterodactyl/public;
+    index index.php;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.1-fpm.sock;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+EOL
+
+ln -s /etc/nginx/sites-available/pterodactyl /etc/nginx/sites-enabled/
+systemctl restart nginx
+
+# -------------------------------
+# FINAL OUTPUT
+# -------------------------------
+clear
+echo "==================================="
+echo "✅ INSTALLATION COMPLETE!"
 echo ""
-echo "Starting Panel Server on Port 8080..."
-
-php artisan serve --host=0.0.0.0 --port=8080
+echo "🌍 PANEL LINK:"
+echo "👉 http://YOUR_SERVER_IP:8080"
+echo ""
+echo "⚡ Open this in browser to access panel"
+echo "==================================="
