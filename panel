@@ -3,7 +3,7 @@
 clear
 
 echo "====================================="
-echo "        POWERED BY"
+echo "           POWERED BY"
 sleep 1
 clear
 
@@ -22,30 +22,30 @@ sleep 3
 
 echo "🚀 Starting Installation..."
 
-# Root check
+# ROOT CHECK
 if [ "$EUID" -ne 0 ]; then
   echo "❌ Run as root (sudo su)"
   exit
 fi
 
-# Update system
+# UPDATE SYSTEM
 apt update -y && apt upgrade -y
 
-# Install dependencies
+# INSTALL BASIC PACKAGES
 apt install -y curl wget git unzip software-properties-common
 
 add-apt-repository universe -y
 apt update -y
 
-# Install PHP + Nginx + MySQL
+# INSTALL PHP + MYSQL + NGINX
 apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-zip mysql-server nginx tar
 
-# Install Composer
+# INSTALL COMPOSER
 cd ~
 curl -sS https://getcomposer.org/installer | php
 mv composer.phar /usr/local/bin/composer
 
-# Download Panel
+# DOWNLOAD PANEL
 mkdir -p /var/www/pterodactyl
 cd /var/www/pterodactyl
 
@@ -54,12 +54,12 @@ tar -xzvf panel.tar.gz
 
 chmod -R 755 storage/* bootstrap/cache/
 
-# Setup environment
+# SETUP ENV
 cp .env.example .env
 composer install --no-dev --optimize-autoloader
 php artisan key:generate --force
 
-# Database
+# DATABASE SETUP
 mysql -u root <<EOF
 CREATE DATABASE panel;
 CREATE USER 'ptero'@'127.0.0.1' IDENTIFIED BY 'StrongPassword123!';
@@ -67,7 +67,7 @@ GRANT ALL PRIVILEGES ON panel.* TO 'ptero'@'127.0.0.1';
 FLUSH PRIVILEGES;
 EOF
 
-# Panel config
+# PANEL CONFIG
 php artisan p:environment:setup <<EOF
 http://localhost
 yes
@@ -87,15 +87,62 @@ EOF
 
 php artisan migrate --seed --force
 
-# Admin setup
-echo ""
-read -p "Create Admin? (yes/no): " admin
+# =========================
+# USER + ADMIN SETUP
+# =========================
 
-if [ "$admin" = "yes" ]; then
-    php artisan p:user:make
+echo ""
+echo "====================================="
+echo "        USER SETUP"
+echo "====================================="
+
+read -p "Create Administrator? (yes/no): " admin
+
+echo ""
+echo "👉 Enter Account Details"
+
+read -p "Username: " uname
+read -p "Email: " email
+read -p "Password: " pass
+read -p "Confirm Password: " cpass
+
+if [ "$pass" != "$cpass" ]; then
+    echo "❌ Password mismatch! Restart script."
+    exit 1
 fi
 
-# Nginx config
+if [ "$admin" = "yes" ]; then
+
+    php artisan p:user:make <<EOF
+yes
+$email
+$uname
+Admin
+User
+$pass
+EOF
+
+    echo "👑 Admin Account Created!"
+
+else
+
+    php artisan p:user:make <<EOF
+no
+$email
+$uname
+User
+Panel
+$pass
+EOF
+
+    echo "👤 Normal User Created!"
+
+fi
+
+# =========================
+# NGINX SETUP
+# =========================
+
 cat > /etc/nginx/sites-available/pterodactyl <<EOL
 server {
     listen 8080;
@@ -118,8 +165,14 @@ EOL
 ln -s /etc/nginx/sites-available/pterodactyl /etc/nginx/sites-enabled/
 systemctl restart nginx
 
+# =========================
+# FINAL OUTPUT
+# =========================
+
 clear
 echo "====================================="
-echo "✅ INSTALL COMPLETE!"
-echo "🌍 Open: http://YOUR-IP:8080"
+echo "✅ INSTALLATION COMPLETE!"
+echo ""
+echo "👉 Go to PORTS section"
+echo "👉 Open port 8080 to access your panel"
 echo "====================================="
