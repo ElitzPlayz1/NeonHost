@@ -2,117 +2,114 @@
 
 clear
 
+# Colors
+RED='\033[0;31m'
+GRN='\033[0;32m'
+CYN='\033[0;36m'
+YEL='\033[1;33m'
+NC='\033[0m'
+
+echo -e "${YEL}"
 echo "====================================="
-echo "           POWERED BY"
+echo "            POWERED BY"
+echo "====================================="
 sleep 1
 clear
 
-echo "███████╗██╗     ██╗████████╗███████╗"
-echo "██╔════╝██║     ██║╚══██╔══╝██╔════╝"
-echo "█████╗  ██║     ██║   ██║   ███████╗"
-echo "██╔══╝  ██║     ██║   ██║   ╚════██║"
-echo "███████╗███████╗██║   ██║   ███████║"
-echo "╚══════╝╚══════╝╚═╝   ╚═╝   ╚══════╝"
+# BIG ELITZ LOGO
+echo -e "${CYN}"
+cat << "EOF"
+███████╗██╗     ██╗████████╗███████╗
+██╔════╝██║     ██║╚══██╔══╝██╔════╝
+█████╗  ██║     ██║   ██║   ███████╗
+██╔══╝  ██║     ██║   ██║   ╚════██║
+███████╗███████╗██║   ██║   ███████║
+╚══════╝╚══════╝╚═╝   ╚═╝   ╚══════╝
+EOF
+echo -e "${NC}"
 
-echo ""
-echo "        ELITZPLAYZYT INSTALLER"
-echo "====================================="
+echo -e "${GRN}🔥 ELITZPLAYZYT PANEL INSTALLER 🔥${NC}"
+sleep 2
 
-sleep 3
-
-echo "🚀 Starting Installation..."
-
-# ROOT CHECK
-if [ "$EUID" -ne 0 ]; then
-  echo "❌ Run as root (sudo su)"
-  exit
-fi
-
-# UPDATE SYSTEM
-apt update -y && apt upgrade -y
-
-# INSTALL BASIC PACKAGES
-apt install -y curl wget git unzip software-properties-common
-
-add-apt-repository universe -y
+echo -e "${YEL}📦 Installing Docker...${NC}"
 apt update -y
+apt install docker.io docker-compose -y
 
-# INSTALL PHP + MYSQL
-apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-zip mysql-server tar
+systemctl start docker
+systemctl enable docker
 
-# INSTALL COMPOSER
-cd ~
-curl -sS https://getcomposer.org/installer | php
-mv composer.phar /usr/local/bin/composer
+echo -e "${CYN}📂 Setting up directories...${NC}"
+mkdir -p pterodactyl/panel
+cd pterodactyl/panel || exit
 
-# DOWNLOAD PANEL
-mkdir -p /var/www/pterodactyl
-cd /var/www/pterodactyl
-
-curl -Lo panel.tar.gz https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz
-tar -xzvf panel.tar.gz
-
-chmod -R 755 storage/* bootstrap/cache/
-
-# SETUP ENV
-cp .env.example .env
-composer install --no-dev --optimize-autoloader
-php artisan key:generate --force
-
-# DATABASE SETUP
-mysql -u root <<EOF
-CREATE DATABASE panel;
-CREATE USER 'ptero'@'127.0.0.1' IDENTIFIED BY 'StrongPassword123!';
-GRANT ALL PRIVILEGES ON panel.* TO 'ptero'@'127.0.0.1';
-FLUSH PRIVILEGES;
-EOF
-
-# PANEL CONFIG
-php artisan p:environment:setup <<EOF
-http://localhost
-yes
-UTC
-yes
-file
-redis
-EOF
-
-php artisan p:environment:database <<EOF
-127.0.0.1
-3306
-panel
-ptero
-StrongPassword123!
-EOF
-
-php artisan migrate --seed --force
-
-# =========================
-# USER SETUP
-# =========================
-
+# USER INPUT
 echo ""
 echo "====================================="
 echo "        USER SETUP"
 echo "====================================="
 
 read -p "Create Administrator? (yes/no): " admin
-
-echo ""
-echo "👉 Enter Account Details"
-
 read -p "Username: " uname
 read -p "Email: " email
 read -p "Password: " pass
-read -p "Confirm Password: " cpass
 
-if [ "$pass" != "$cpass" ]; then
-    echo "❌ Password mismatch!"
-    exit 1
-fi
+# DOCKER COMPOSE FILE
+echo -e "${CYN}⚙️ Creating docker-compose.yml...${NC}"
+
+cat <<EOF > docker-compose.yml
+version: '3.8'
+
+services:
+  database:
+    image: mariadb:10.5
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: panel
+      MYSQL_USER: ptero
+      MYSQL_PASSWORD: pteropass
+    volumes:
+      - "./data/database:/var/lib/mysql"
+
+  cache:
+    image: redis:alpine
+    restart: always
+
+  panel:
+    image: ghcr.io/pterodactyl/panel:latest
+    restart: always
+    ports:
+      - "8080:80"
+    depends_on:
+      - database
+      - cache
+    volumes:
+      - "./data/var:/app/var"
+      - "./data/logs:/app/storage/logs"
+    environment:
+      APP_URL: "http://localhost"
+      DB_PASSWORD: pteropass
+      APP_ENV: production
+      CACHE_DRIVER: redis
+      SESSION_DRIVER: redis
+      QUEUE_DRIVER: redis
+      REDIS_HOST: cache
+      DB_HOST: database
+      DB_PORT: 3306
+
+EOF
+
+mkdir -p ./data/{database,var,logs}
+
+echo -e "${GRN}🚀 Starting Panel...${NC}"
+docker-compose up -d
+
+sleep 10
+
+echo -e "${GRN}👤 Creating User...${NC}"
 
 if [ "$admin" = "yes" ]; then
-php artisan p:user:make <<EOF
+docker-compose run --rm panel php artisan p:user:make <<EOF
 yes
 $email
 $uname
@@ -122,7 +119,7 @@ $pass
 EOF
 echo "👑 Admin Created!"
 else
-php artisan p:user:make <<EOF
+docker-compose run --rm panel php artisan p:user:make <<EOF
 no
 $email
 $uname
@@ -133,34 +130,14 @@ EOF
 echo "👤 User Created!"
 fi
 
-# =========================
-# START PANEL + PORT FIX
-# =========================
-
-echo ""
-echo "🚀 Starting Panel on port 8080..."
-
-cd /var/www/pterodactyl
-
-# Start in background
-nohup php artisan serve --host=0.0.0.0 --port=8080 > /dev/null 2>&1 &
-
-sleep 2
-
-# Trigger port detection (IMPORTANT)
-php artisan serve --host=0.0.0.0 --port=8080 &
-
-sleep 3
-
-# =========================
 # FINAL OUTPUT
-# =========================
-
 clear
 echo "====================================="
 echo "✅ INSTALLATION COMPLETE!"
 echo ""
-echo "👉 Go to PORTS section"
-echo "👉 Port 8080 should now be visible"
-echo "👉 Click it to open panel"
+echo "🌐 Go to PORTS section"
+echo "👉 Open port 8080"
+echo "👉 Click to access your panel"
+echo ""
+echo "🔥 Powered by ELITZPLAYZYT"
 echo "====================================="
