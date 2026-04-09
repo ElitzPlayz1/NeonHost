@@ -37,8 +37,8 @@ apt install -y curl wget git unzip software-properties-common
 add-apt-repository universe -y
 apt update -y
 
-# INSTALL PHP + MYSQL + NGINX
-apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-zip mysql-server nginx tar
+# INSTALL PHP + MYSQL
+apt install -y php php-cli php-mbstring php-xml php-bcmath php-curl php-zip mysql-server tar
 
 # INSTALL COMPOSER
 cd ~
@@ -88,7 +88,7 @@ EOF
 php artisan migrate --seed --force
 
 # =========================
-# USER + ADMIN SETUP
+# USER SETUP
 # =========================
 
 echo ""
@@ -107,13 +107,12 @@ read -p "Password: " pass
 read -p "Confirm Password: " cpass
 
 if [ "$pass" != "$cpass" ]; then
-    echo "❌ Password mismatch! Restart script."
+    echo "❌ Password mismatch!"
     exit 1
 fi
 
 if [ "$admin" = "yes" ]; then
-
-    php artisan p:user:make <<EOF
+php artisan p:user:make <<EOF
 yes
 $email
 $uname
@@ -121,12 +120,9 @@ Admin
 User
 $pass
 EOF
-
-    echo "👑 Admin Account Created!"
-
+echo "👑 Admin Created!"
 else
-
-    php artisan p:user:make <<EOF
+php artisan p:user:make <<EOF
 no
 $email
 $uname
@@ -134,36 +130,21 @@ User
 Panel
 $pass
 EOF
-
-    echo "👤 Normal User Created!"
-
+echo "👤 User Created!"
 fi
 
 # =========================
-# NGINX SETUP
+# START PANEL (IMPORTANT FIX)
 # =========================
 
-cat > /etc/nginx/sites-available/pterodactyl <<EOL
-server {
-    listen 8080;
-    server_name _;
+echo ""
+echo "🚀 Starting Panel on port 8080..."
 
-    root /var/www/pterodactyl/public;
-    index index.php;
+cd /var/www/pterodactyl
 
-    location / {
-        try_files \$uri \$uri/ /index.php?\$query_string;
-    }
+nohup php artisan serve --host=0.0.0.0 --port=8080 > /dev/null 2>&1 &
 
-    location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/var/run/php/php8.1-fpm.sock;
-    }
-}
-EOL
-
-ln -s /etc/nginx/sites-available/pterodactyl /etc/nginx/sites-enabled/
-systemctl restart nginx
+sleep 3
 
 # =========================
 # FINAL OUTPUT
