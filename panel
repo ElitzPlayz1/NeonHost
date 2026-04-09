@@ -2,31 +2,154 @@
 
 clear
 
-echo "🔥 ELITZPLAYZYT INSTALLER 🔥"
+# =========================
+# DESIGN / UI
+# =========================
+
+echo "====================================="
+echo "        Powered By"
+sleep 1
+clear
+
+echo "███████╗██╗     ██╗████████╗███████╗"
+echo "██╔════╝██║     ██║╚══██╔══╝██╔════╝"
+echo "█████╗  ██║     ██║   ██║   ███████╗"
+echo "██╔══╝  ██║     ██║   ██║   ╚════██║"
+echo "███████╗███████╗██║   ██║   ███████║"
+echo "╚══════╝╚══════╝╚═╝   ╚═╝   ╚══════╝"
+echo ""
+echo "        ELITZPLAYZYT INSTALLER"
+echo "====================================="
+
+sleep 3
+
+echo "Starting Installation..."
 sleep 2
 
-echo "Starting..."
-sleep 2
+# =========================
+# INSTALL PANEL (REAL)
+# =========================
 
-echo "Installing panel..."
-sleep 2
+echo "Installing Dependencies..."
+apt update -y && apt upgrade -y
 
-read -p "Create Admin? (yes/no): " ADMIN
+apt install -y curl wget git unzip nginx mysql-server php php-cli php-fpm php-mysql php-zip php-gd php-mbstring php-curl php-xml php-bcmath
+
+echo "Downloading Pterodactyl Panel..."
+mkdir -p /var/www/pterodactyl
+cd /var/www/pterodactyl
+
+curl -Lo panel.tar.gz https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz
+tar -xzvf panel.tar.gz
+chmod -R 755 storage/* bootstrap/cache/
+
+cp .env.example .env
+
+echo "Installing Composer..."
+curl -sS https://getcomposer.org/installer | php
+php composer.phar install --no-dev --optimize-autoloader
+
+# =========================
+# DATABASE SETUP
+# =========================
+
+echo "Setting up Database..."
+
+DB_PASS="pterodactyl"
+
+mysql -u root <<MYSQL_SCRIPT
+CREATE DATABASE panel;
+CREATE USER 'ptero'@'127.0.0.1' IDENTIFIED BY '$DB_PASS';
+GRANT ALL PRIVILEGES ON panel.* TO 'ptero'@'127.0.0.1';
+FLUSH PRIVILEGES;
+MYSQL_SCRIPT
+
+php artisan key:generate --force
+
+php artisan migrate --seed --force
+
+# =========================
+# ADMIN OPTION
+# =========================
+
+echo ""
+read -p "Create Administrator? (yes/no): " ADMIN
 
 if [[ "$ADMIN" == "yes" ]]; then
-  read -p "Username: " USERNAME
-  read -p "Email: " EMAIL
-  read -s -p "Password: " PASSWORD
-  echo ""
-  read -s -p "Confirm Password: " PASSWORD2
-  echo ""
+    echo ""
+    read -p "First Name: " FNAME
+    read -p "Last Name: " LNAME
+    read -p "Email: " EMAIL
+    read -s -p "Password: " PASSWORD
+    echo ""
+    read -s -p "Confirm Password: " PASSWORD2
+    echo ""
 
-  if [[ "$PASSWORD" != "$PASSWORD2" ]]; then
-    echo "Password mismatch!"
-    exit 1
-  fi
+    if [[ "$PASSWORD" != "$PASSWORD2" ]]; then
+        echo "❌ Password mismatch!"
+        exit 1
+    fi
 
-  echo "Admin Created!"
+    php artisan p:user:make <<EOF
+yes
+$EMAIL
+$FNAME
+$LNAME
+$PASSWORD
+EOF
+
+    echo "✅ Admin Created!"
+else
+    echo "❌ No Admin Created"
 fi
 
-echo "Done!"
+# =========================
+# NGINX SETUP (PORT 8080)
+# =========================
+
+echo "Configuring Web Server..."
+
+cat > /etc/nginx/sites-available/pterodactyl.conf <<EOL
+server {
+    listen 8080;
+    server_name _;
+
+    root /var/www/pterodactyl/public;
+    index index.php;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+EOL
+
+ln -s /etc/nginx/sites-available/pterodactyl.conf /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+
+systemctl restart nginx
+
+# =========================
+# FINAL OUTPUT
+# =========================
+
+IP=$(hostname -I | awk '{print $1}')
+
+echo ""
+echo "====================================="
+echo "        🎉 SETUP COMPLETED 🎉"
+echo "====================================="
+echo ""
+echo "Panel URL: http://$IP:8080"
+echo ""
+echo "Login with your email & password"
+echo ""
+echo "====================================="
